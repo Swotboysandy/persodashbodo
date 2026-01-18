@@ -1,0 +1,372 @@
+﻿'use client';
+
+import { useState, useMemo } from 'react';
+import {
+    IoFilmOutline,
+    IoAddOutline,
+    IoStar,
+    IoStarOutline,
+    IoCreateOutline,
+    IoTrashOutline,
+    IoEyeOutline,
+    IoEyeOffOutline,
+    IoCheckmarkCircleOutline,
+    IoSearchOutline,
+    IoGridOutline,
+    IoListOutline
+} from 'react-icons/io5';
+import Modal from '@/components/Modal';
+import { Movie, MOVIE_GENRES } from '@/types';
+import { useLocalStorage, generateId } from '@/hooks/useLocalStorage';
+import { searchMovies, getMovieDetails } from '@/services/movieService';
+import Image from 'next/image';
+
+type StatusFILTER = 'all' | 'to-watch' | 'watching' | 'watched';
+type ViewMode = 'grid' | 'genre';
+
+export default function MoviesPage() {
+    const [movies, setMovies] = useLocalStorage<Movie[]>('movies', []);
+    const [statusFILTER, setStatusFILTER] = useState<StatusFILTER>('all');
+    const [viewMode, setViewMode] = useState<ViewMode>('grid');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Form state
+    const [formData, setFormData] = useState({
+        title: '',
+        status: 'to-watch' as Movie['status'],
+        rating: 0,
+        notes: '',
+        genre: '',
+        tmdbId: 0,
+        poster: '',
+        backdrop: '',
+        plot: '',
+        cast: [] as string[],
+        releaseYear: 0,
+        imdbRating: 0
+    });
+
+    const FILTERedMovies = useMemo(() => {
+        if (statusFILTER === 'all') return movies;
+        return movies.FILTER(m => m.status === statusFILTER);
+    }, [movies, statusFILTER]);
+
+    const openAddModal = () => {
+        setEditingMovie(null);
+        setFormData({
+            title: '',
+            status: 'to-watch',
+            rating: 0,
+            notes: '',
+            genre: '',
+        });
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (movie: Movie) => {
+        setEditingMovie(movie);
+        setFormData({
+            title: movie.title,
+            status: movie.status,
+            rating: movie.rating || 0,
+            notes: movie.notes || '',
+            genre: movie.genre || '',
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (editingMovie) {
+            setMovies(prev => prev.map(m =>
+                m.id === editingMovie.id
+                    ? { ...m, ...formData }
+                    : m
+            ));
+        } else {
+            const newMovie: Movie = {
+                id: generateId(),
+                title: formData.title,
+                status: formData.status,
+                rating: formData.rating,
+                notes: formData.notes,
+                genre: formData.genre,
+                addedDate: new Date().toISOString(),
+            };
+            setMovies(prev => [newMovie, ...prev]);
+        }
+
+        setIsModalOpen(false);
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('Are you sure you want to delete this movie?')) {
+            setMovies(prev => prev.FILTER(m => m.id !== id));
+        }
+    };
+
+    const handleStatusChange = (id: string, newStatus: Movie['status']) => {
+        setMovies(prev => prev.map(m =>
+            m.id === id ? { ...m, status: newStatus } : m
+        ));
+    };
+
+    const renderStars = (rating: number) => {
+        return (
+            <div style={{ display: 'flex', color: 'var(--accent-yellow)' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                    <span key={star}>
+                        {star <= rating ? <IoStar size={14} /> : <IoStarOutline size={14} />}
+                    </span>
+                ))}
+            </div>
+        );
+    };
+
+    const counts = {
+        toWatch: movies.FILTER(m => m.status === 'to-watch').length,
+        watching: movies.FILTER(m => m.status === 'watching').length,
+        watched: movies.FILTER(m => m.status === 'watched').length,
+    };
+
+    return (
+        <div>
+            <div className="page-header">
+                <h1 className="page-title">
+                    <IoFilmOutline size={24} />
+                    Movies Watchlist
+                </h1>
+                <button className="btn btn-primary" onClick={openAddModal}>
+                    <IoAddOutline size={16} /> Add Movie
+                </button>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '32px' }}>
+                <div className="card">
+                    <h3 style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>To Watch</h3>
+                    <div style={{ fontSize: '24px', fontWeight: 600 }}>{counts.toWatch}</div>
+                </div>
+                <div className="card">
+                    <h3 style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Watching</h3>
+                    <div style={{ fontSize: '24px', fontWeight: 600 }}>{counts.watching}</div>
+                </div>
+                <div className="card">
+                    <h3 style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>Watched</h3>
+                    <div style={{ fontSize: '24px', fontWeight: 600 }}>{counts.watched}</div>
+                </div>
+            </div>
+
+            {/* FILTERs */}
+            <div className="table-FILTERs" style={{ marginBottom: '24px' }}>
+                <button
+                    className={ilter - btn}
+                    onClick={() => setStatusFILTER('all')}
+                >
+                    All Movies
+                </button>
+                <button
+                    className={ilter - btn}
+                    onClick={() => setStatusFILTER('to-watch')}
+                >
+                    To Watch
+                </button>
+                <button
+                    className={ilter - btn}
+                    onClick={() => setStatusFILTER('watching')}
+                >
+                    Watching
+                </button>
+                <button
+                    className={ilter - btn}
+                    onClick={() => setStatusFILTER('watched')}
+                >
+                    Watched
+                </button>
+            </div>
+
+            {/* Movies Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+                {FILTERedMovies.map(movie => (
+                    <div key={movie.id} className="card movie-card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{movie.title}</h3>
+                            {renderStars(movie.rating || 0)}
+                        </div>
+
+                        <div style={{ marginBottom: '16px' }}>
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    fontWeight: 500,
+                                    backgroundColor:
+                                        movie.status === 'watched' ? 'rgba(74, 139, 110, 0.2)' :
+                                            movie.status === 'watching' ? 'rgba(235, 203, 139, 0.2)' :
+                                                'rgba(136, 192, 208, 0.2)',
+                                    color:
+                                        movie.status === 'watched' ? 'var(--accent-green)' :
+                                            movie.status === 'watching' ? 'var(--accent-yellow)' :
+                                                'var(--accent-blue)',
+                                    marginRight: '8px'
+                                }}
+                            >
+                                {movie.status === 'to-watch' ? 'To Watch' :
+                                    movie.status === 'watching' ? 'Watching' : 'Watched'}
+                            </span>
+                            {movie.genre && (
+                                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                    {movie.genre}
+                                </span>
+                            )}
+                        </div>
+
+                        {movie.notes && (
+                            <p style={{
+                                fontSize: '13px',
+                                color: 'var(--text-muted)',
+                                marginBottom: '16px',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden'
+                            }}>
+                                {movie.notes}
+                            </p>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                            <button
+                                className="btn btn-secondary"
+                                style={{ fontSize: '12px', padding: '6px 12px' }}
+                                onClick={() => {
+                                    const nextStatus =
+                                        movie.status === 'to-watch' ? 'watching' :
+                                            movie.status === 'watching' ? 'watched' : 'to-watch';
+                                    handleStatusChange(movie.id, nextStatus);
+                                }}
+                            >
+                                {movie.status === 'to-watch' ? <><IoEyeOutline size={14} /> Start</> :
+                                    movie.status === 'watching' ? <><IoCheckmarkCircleOutline size={14} /> Finish</> :
+                                        <><IoEyeOutline size={14} /> Rewatch</>}
+                            </button>
+
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn btn-icon" onClick={() => openEditModal(movie)}>
+                                    <IoCreateOutline size={14} />
+                                </button>
+                                <button className="btn btn-icon" onClick={() => handleDelete(movie.id)}>
+                                    <IoTrashOutline size={14} />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {FILTERedMovies.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+                    <p>No movies found.</p>
+                </div>
+            )}
+
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title={editingMovie ? "Edit Movie" : "Add Movie"}
+                footer={
+                    <>
+                        <button className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>
+                            Cancel
+                        </button>
+                        <button className="btn btn-primary" onClick={handleSubmit}>
+                            {editingMovie ? 'Update' : 'Add'}
+                        </button>
+                    </>
+                }
+            >
+                <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label className="form-label">Title</label>
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={formData.title}
+                            onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                            placeholder="Movie title"
+                            required
+                        />
+                    </div>
+
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label className="form-label">Status</label>
+                            <select
+                                className="form-select"
+                                value={formData.status}
+                                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as Movie['status'] }))}
+                            >
+                                <option value="to-watch">To Watch</option>
+                                <option value="watching">Watching</option>
+                                <option value="watched">Watched</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Genre</label>
+                            <select
+                                className="form-select"
+                                value={formData.genre}
+                                onChange={(e) => setFormData(prev => ({ ...prev, genre: e.target.value }))}
+                            >
+                                <option value="">Select Genre</option>
+                                {MOVIE_GENRES.map(g => (
+                                    <option key={g} value={g}>{g}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Rating</label>
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                    key={star}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, rating: star }))}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: star <= formData.rating ? 'var(--accent-yellow)' : 'var(--text-muted)'
+                                    }}
+                                >
+                                    {star <= formData.rating ? <IoStar size={24} /> : <IoStarOutline size={24} />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Notes</label>
+                        <textarea
+                            className="form-input"
+                            value={formData.notes}
+                            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder="Add your review or thoughts..."
+                            rows={3}
+                            style={{ resize: 'vertical' }}
+                        />
+                    </div>
+                </form>
+            </Modal>
+        </div>
+    );
+}
