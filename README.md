@@ -1,7 +1,6 @@
 # PersoDashbodo 🧠
 > **Your Private, AI-Powered, Local-First Digital Brain.**
 
-![PersoDashbodo Banner](/public/file.svg)
 
 **PersoDashbodo** is a personal dashboard designed for privacy enthusiasts who want a beautiful, "deep dark" interface to manage their digital life. It combines financial tracking, movie watchlists, secure notes, and password management into one cohesive application.
 
